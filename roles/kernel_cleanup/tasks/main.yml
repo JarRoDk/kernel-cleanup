@@ -1,0 +1,66 @@
+#---
+- name: remove virtual package - remove xenial virtual package if we don't remove it ubuntu will advice to upgrade it
+  apt:
+    name: "{{ item }}"
+    state: removed
+  register: uninstall
+  with_items:
+    '{{ virtual-packages }}'
+
+#- name: try to install latest kernel for experimet
+#  apt: 
+#    name: linux-image-4.4.0-70-generic 
+  
+- name: check if a reboot is required [ if /var/run/reboot-required exist ] = reboot - server is using old kernel version 
+  stat: 
+    path: /var/run/reboot-required
+    get_md5: no
+  register: sym
+  notify: reboot
+
+- name: Reboot if required - server is using old kernel version 
+  shell: reboot
+  async: 0
+  poll: 0
+  when: sym.stat.exists is defined and sym.stat.exists
+
+- name: Wait for server to come back - server is using old kernel version 
+  wait_for:
+    host: "{{ ansible_ssh_host }}"
+    port: 22
+    delay: 10
+    timeout: 900
+  connection: local
+  when: sym.stat.exists is defined and sym.stat.exists
+
+- name: search candidate kernels to be removed
+  shell: ls -tr /boot/vmlinuz-* | head -n -"{{ KEEP_KERNEL_NUM }}" | grep -v "$(uname -r)" | cut -d- -f2- | awk '{print "linux-image-" $0 "\nlinux-headers-" $0}'
+  register: to_remove_kernels
+
+- name: remove old kernel if script find some
+  apt:
+    name: "{{ item }}"
+    state: removed 
+  register: removed_items
+  with_items: "{{ to_remove_kernels.stdout_lines }}"
+
+- name: check if a reboot is required [ if /var/run/reboot-required exist ] = reboot after remove old kernels
+  stat: 
+    path: /var/run/reboot-required
+    get_md5: no
+  register: sym
+
+- name: Reboot if required after remove old kernels
+  shell: reboot
+  async: 0
+  poll: 0
+  when: sym.stat.exists is defined and sym.stat.exists
+
+- name: Wait for server to come back after remove old kernels
+  wait_for:
+    host: "{{ ansible_ssh_host }}"
+    port: 22
+    delay: 10
+    timeout: 900
+  connection: local
+  when: sym.stat.exists is defined and sym.stat.exists

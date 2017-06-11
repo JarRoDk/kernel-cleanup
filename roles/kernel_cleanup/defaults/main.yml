@@ -1,0 +1,7 @@
+---
+ 
+KEEP_KERNEL_NUM: 2
+virtual_packages:
+  - linux-image-generic-lts-xenial
+  - linux-headers-generic-lts-xenial
+  - linux-generic-lts-xenial
